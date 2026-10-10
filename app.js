@@ -278,6 +278,7 @@ function lignesPourMode(f, mode) {
 
 function genererHtmlDocument(f, mode) {
   const lignes = lignesPourMode(f, mode);
+  const entete = `<img src="logo.png" alt="Logo Elie3MDigital" style="height:80px;display:block;margin-bottom:8px">`;
 
   if (mode === "livraison") {
     if (lignes.length === 0) {
@@ -291,7 +292,7 @@ function genererHtmlDocument(f, mode) {
       </tr>`).join("");
 
     return `
-      <h2>Elie3MDigital</h2>
+      ${entete}
       <h2>Bon de livraison ${echapper(f.numero)}</h2>
       <p>Date : ${echapper(f.date_facture)}</p>
       <p><strong>Client :</strong> ${echapper(f.clients?.nom)}<br>
@@ -314,7 +315,7 @@ function genererHtmlDocument(f, mode) {
     </tr>`).join("");
 
   return `
-    <h2>Elie3MDigital</h2>
+    ${entete}
     <h2>Facture ${echapper(f.numero)}</h2>
     <p>Date : ${echapper(f.date_facture)}</p>
     <p><strong>Client :</strong> ${echapper(f.clients?.nom)}<br>
@@ -364,21 +365,39 @@ function chargerJsPDF() {
   });
 }
 
+// Charge le logo sous forme de données, pour l'inclure dans le PDF
+function chargerLogoPDF() {
+  return fetch("logo.png")
+    .then(r => (r.ok ? r.blob() : null))
+    .then(blob => {
+      if (!blob) return null;
+      return new Promise(resolve => {
+        const lecteur = new FileReader();
+        lecteur.onload = () => resolve(lecteur.result);
+        lecteur.onerror = () => resolve(null);
+        lecteur.readAsDataURL(blob);
+      });
+    })
+    .catch(() => null);
+}
+
 async function creerPDF(f, mode) {
   const jsPDF = await chargerJsPDF();
   const doc = new jsPDF();
   const livraison = mode === "livraison";
   const lignes = lignesPourMode(f, mode);
-  let y = 20;
+
+  const logo = await chargerLogoPDF();
+  if (logo) doc.addImage(logo, "PNG", 14, 8, 36, 36);
 
   doc.setFontSize(18);
   doc.setTextColor(30, 77, 140);
-  doc.text("Elie3MDigital", 14, y);
-  y += 7;
+  doc.text("Elie3MDigital", 56, 20);
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text("Votre partenaire digital au quotidien", 14, y);
-  y += 14;
+  doc.text("Votre partenaire digital au quotidien", 56, 27);
+
+  let y = 50;
 
   doc.setFontSize(14);
   doc.text((livraison ? "Bon de livraison " : "Facture ") + f.numero, 14, y);
