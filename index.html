@@ -20,6 +20,7 @@
     button.danger { background: #b02a37; width: auto; padding: 4px 10px; font-size: 14px; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; }
+    tfoot th { border-top: 2px solid #1e4d8c; }
     .total { text-align: right; font-size: 18px; font-weight: bold; margin: 12px 0; }
     .ligne-form { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
     .deux-colonnes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -116,7 +117,7 @@
     </section>
 
     <section id="section-apercu">
-      <h2>Aperçu de la facture</h2>
+      <h2>Aperçu</h2>
       <div id="facture-imprimable"></div>
       <button type="button" id="btn-imprimer">Imprimer</button>
       <button type="button" id="btn-fermer-apercu" class="secondaire">Fermer l'aperçu</button>
@@ -126,5 +127,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
+  <script src="bilan.js"></script>
 </body>
 </html>
