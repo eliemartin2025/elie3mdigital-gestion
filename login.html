@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connexion - Elie3MDigital</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .carte { background: #fff; padding: 24px; border-radius: 8px; width: 90%; max-width: 360px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    h1 { font-size: 20px; color: #1e4d8c; text-align: center; margin-top: 0; }
+    input, button { width: 100%; padding: 12px; margin: 6px 0; box-sizing: border-box; font-size: 16px; }
+    button { background: #1e4d8c; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    #erreur { color: #b02a37; min-height: 20px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="carte">
+    <h1>Connexion</h1>
+    <form id="form-connexion">
+      <input id="email" type="email" placeholder="Email" required>
+      <input id="mot-de-passe" type="password" placeholder="Mot de passe" required>
+      <button type="submit">Se connecter</button>
+    </form>
+    <p id="erreur"></p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const dbLogin = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    document.getElementById("form-connexion").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const { error } = await dbLogin.auth.signInWithPassword({
+        email: document.getElementById("email").value.trim(),
+        password: document.getElementById("mot-de-passe").value
+      });
+      if (error) {
+        document.getElementById("erreur").textContent = "Email ou mot de passe incorrect.";
+        return;
+      }
+      window.location.href = "index.html";
+    });
+  </script>
+</body>
+</html>
