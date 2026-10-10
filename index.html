@@ -12,14 +12,28 @@
     main { padding: 16px; max-width: 900px; margin: auto; }
     section { background: #fff; padding: 16px; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
     h2 { margin-top: 0; color: #1e4d8c; font-size: 18px; }
+    h3 { font-size: 15px; color: #444; margin: 16px 0 8px; }
     input, select, button { padding: 10px; margin: 4px 0; width: 100%; box-sizing: border-box; font-size: 16px; }
     button { background: #1e4d8c; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
     button:hover { background: #163a6b; }
+    button.secondaire { background: #6c757d; }
+    button.danger { background: #b02a37; width: auto; padding: 4px 10px; font-size: 14px; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; }
+    .total { text-align: right; font-size: 18px; font-weight: bold; margin: 12px 0; }
+    .ligne-form { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
     #message { display: none; padding: 10px; margin-bottom: 12px; border-radius: 4px; }
     #message.ok { display: block; background: #d4edda; }
     #message.err { display: block; background: #f8d7da; }
+    #section-apercu { display: none; }
+    #facture-imprimable { background: #fff; padding: 20px; border: 1px solid #ddd; }
+    #facture-imprimable table td, #facture-imprimable table th { padding: 6px; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #facture-imprimable, #facture-imprimable * { visibility: visible; }
+      #facture-imprimable { position: absolute; left: 0; top: 0; width: 100%; border: none; }
+    }
   </style>
 </head>
 <body>
@@ -32,6 +46,20 @@
     <div id="message"></div>
 
     <section>
+      <h2>Produits</h2>
+      <form id="form-produit">
+        <input id="p-nom" placeholder="Nom du produit *" required>
+        <input id="p-prix" type="number" step="0.01" min="0" placeholder="Prix unitaire *" required>
+        <input id="p-description" placeholder="Description">
+        <button type="submit">Ajouter le produit</button>
+      </form>
+      <table>
+        <thead><tr><th>Produit</th><th>Prix</th></tr></thead>
+        <tbody id="liste-produits"></tbody>
+      </table>
+    </section>
+
+    <section>
       <h2>Nouveau client</h2>
       <form id="form-client">
         <input id="c-nom" placeholder="Nom du client *" required>
@@ -40,10 +68,7 @@
         <input id="c-adresse" placeholder="Adresse">
         <button type="submit">Ajouter le client</button>
       </form>
-    </section>
-
-    <section>
-      <h2>Clients</h2>
+      <h3>Liste des clients</h3>
       <table>
         <thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th></tr></thead>
         <tbody id="liste-clients"></tbody>
@@ -55,17 +80,37 @@
       <form id="form-facture">
         <input id="f-numero" placeholder="Numéro de facture (ex : FAC-001) *" required>
         <select id="f-client" required></select>
-        <input id="f-montant" type="number" step="0.01" min="0" placeholder="Montant total *" required>
-        <button type="submit">Créer la facture</button>
+
+        <h3>Lignes de la facture</h3>
+        <div class="ligne-form">
+          <select id="f-produit"></select>
+          <input id="f-quantite" type="number" step="0.01" min="0.01" value="1" placeholder="Quantité">
+        </div>
+        <button type="button" id="btn-ajouter-ligne" class="secondaire">Ajouter la ligne</button>
+
+        <table>
+          <thead><tr><th>Désignation</th><th>Qté</th><th>Prix</th><th>Total</th><th></th></tr></thead>
+          <tbody id="lignes-facture"></tbody>
+        </table>
+
+        <div class="total">Total : <span id="f-total">0.00</span></div>
+        <button type="submit">Enregistrer la facture</button>
       </form>
     </section>
 
     <section>
       <h2>Factures</h2>
       <table>
-        <thead><tr><th>Numéro</th><th>Client</th><th>Date</th><th>Montant</th></tr></thead>
+        <thead><tr><th>Numéro</th><th>Client</th><th>Date</th><th>Montant</th><th></th></tr></thead>
         <tbody id="liste-factures"></tbody>
       </table>
+    </section>
+
+    <section id="section-apercu">
+      <h2>Aperçu de la facture</h2>
+      <div id="facture-imprimable"></div>
+      <button type="button" id="btn-imprimer">Imprimer</button>
+      <button type="button" id="btn-fermer-apercu" class="secondaire">Fermer l'aperçu</button>
     </section>
   </main>
 
