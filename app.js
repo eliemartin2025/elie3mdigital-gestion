@@ -2,6 +2,7 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let lignesEnCours = [];
 let factureCourante = null;
+let modeCourant = "facture";
 
 function echapper(texte) {
   const div = document.createElement("div");
@@ -34,7 +35,7 @@ function ajouterColonneAction(idTbody) {
 ajouterColonneAction("liste-produits");
 ajouterColonneAction("liste-clients");
 
-/* ---------- PRODUITS ---------- */
+/* ---------- PRODUITS ET PRESTATIONS ---------- */
 
 async function chargerProduits() {
   const { data, error } = await db.from("produits").select("*").order("nom");
@@ -43,11 +44,13 @@ async function chargerProduits() {
   const tbody = document.getElementById("liste-produits");
   const select = document.getElementById("f-produit");
   tbody.innerHTML = "";
-  select.innerHTML = '<option value="">-- Choisir un produit --</option>';
+  select.innerHTML = '<option value="">-- Choisir un produit ou une prestation --</option>';
 
   data.forEach(p => {
+    const type = p.type === "prestation" ? "Prestation" : "Produit";
     tbody.innerHTML += `<tr>
       <td>${echapper(p.nom)}</td>
+      <td>${type}</td>
       <td>${formaterMontant(p.prix_unitaire)}</td>
       <td><button type="button" class="danger" onclick="supprimerProduit(${p.id}, '${echapper(p.nom).replace(/'/g, "\\'")}')">Supprimer</button></td>
     </tr>`;
@@ -56,23 +59,25 @@ async function chargerProduits() {
 }
 
 async function supprimerProduit(id, nom) {
-  if (!confirm("Supprimer le produit « " + nom + " » ?")) return;
+  if (!confirm("Supprimer « " + nom + " » ?")) return;
   const { error } = await db.from("produits").delete().eq("id", id);
   if (error) return afficherMessage("Erreur : " + error.message, "err");
-  afficherMessage("Produit supprimé.", "ok");
+  afficherMessage("Supprimé.", "ok");
   chargerProduits();
 }
 
 document.getElementById("form-produit").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const nouveauProduit = {
+  const nouveau = {
     nom: document.getElementById("p-nom").value.trim(),
+    type: document.getElementById("p-type").value,
+    unite: document.getElementById("p-unite").value.trim() || "unité",
     prix_unitaire: Number(document.getElementById("p-prix").value),
     description: document.getElementById("p-description").value.trim()
   };
-  const { error } = await db.from("produits").insert(nouveauProduit);
+  const { error } = await db.from("produits").insert(nouveau);
   if (error) return afficherMessage("Erreur : " + error.message, "err");
-  afficherMessage("Produit ajouté.", "ok");
+  afficherMessage("Ajouté.", "ok");
   e.target.reset();
   chargerProduits();
 });
@@ -155,7 +160,7 @@ document.getElementById("btn-ajouter-ligne").addEventListener("click", () => {
   const option = select.options[select.selectedIndex];
   const quantite = Number(document.getElementById("f-quantite").value);
 
-  if (!option || !option.value) return afficherMessage("Choisis un produit.", "err");
+  if (!option || !option.value) return afficherMessage("Choisis un produit ou une prestation.", "err");
   if (!quantite || quantite <= 0) return afficherMessage("Quantité invalide.", "err");
 
   lignesEnCours.push({
@@ -251,14 +256,56 @@ document.getElementById("form-facture").addEventListener("submit", async (e) => 
 async function voirFacture(id) {
   const { data: f, error } = await db
     .from("factures")
-    .select("*, clients(nom, email, telephone, adresse), lignes_facture(*)")
+    .select("*, clients(nom, email, telephone, adresse), lignes_facture(*, produits(type, unite))")
     .eq("id", id)
     .single();
   if (error) return afficherMessage("Erreur : " + error.message, "err");
 
   factureCourante = f;
+  afficherApercu("facture");
+}
 
-  const lignesHtml = f.lignes_facture.map(l => `
+/* ---------- DOCUMENTS : FACTURE ET BON DE LIVRAISON ---------- */
+
+// Un bon de livraison ne reprend que les produits, pas les prestations
+function lignesPourMode(f, mode) {
+  const lignes = f.lignes_facture || [];
+  if (mode === "livraison") {
+    return lignes.filter(l => l.produits?.type !== "prestation");
+  }
+  return lignes;
+}
+
+function genererHtmlDocument(f, mode) {
+  const lignes = lignesPourMode(f, mode);
+
+  if (mode === "livraison") {
+    if (lignes.length === 0) {
+      return "<p>Cette facture ne contient que des prestations : il n'y a pas de bon de livraison.</p>";
+    }
+    const lignesHtml = lignes.map(l => `
+      <tr>
+        <td>${echapper(l.designation)}</td>
+        <td>${l.quantite}</td>
+        <td>${echapper(l.produits?.unite || "")}</td>
+      </tr>`).join("");
+
+    return `
+      <h2>Elie3MDigital</h2>
+      <h2>Bon de livraison ${echapper(f.numero)}</h2>
+      <p>Date : ${echapper(f.date_facture)}</p>
+      <p><strong>Client :</strong> ${echapper(f.clients?.nom)}<br>
+         ${echapper(f.clients?.adresse)}<br>
+         ${echapper(f.clients?.telephone)}</p>
+      <table>
+        <thead><tr><th>Désignation</th><th>Quantité</th><th>Unité</th></tr></thead>
+        <tbody>${lignesHtml}</tbody>
+      </table>
+      <p style="margin-top:40px">Reçu par : ____________________ &nbsp;&nbsp; Signature : ____________________</p>
+    `;
+  }
+
+  const lignesHtml = lignes.map(l => `
     <tr>
       <td>${echapper(l.designation)}</td>
       <td>${l.quantite}</td>
@@ -266,7 +313,7 @@ async function voirFacture(id) {
       <td>${formaterMontant(l.total)}</td>
     </tr>`).join("");
 
-  document.getElementById("facture-imprimable").innerHTML = `
+  return `
     <h2>Elie3MDigital</h2>
     <h2>Facture ${echapper(f.numero)}</h2>
     <p>Date : ${echapper(f.date_facture)}</p>
@@ -279,9 +326,29 @@ async function voirFacture(id) {
     </table>
     <div class="total">Total : ${formaterMontant(f.montant_total)}</div>
   `;
+}
 
-  document.getElementById("section-apercu").style.display = "block";
-  document.getElementById("section-apercu").scrollIntoView({ behavior: "smooth" });
+function afficherApercu(mode) {
+  if (!factureCourante) return;
+  modeCourant = mode;
+  document.getElementById("facture-imprimable").innerHTML = genererHtmlDocument(factureCourante, mode);
+  const section = document.getElementById("section-apercu");
+  section.style.display = "block";
+  section.scrollIntoView({ behavior: "smooth" });
+}
+
+function nomFichierPDF() {
+  const prefixe = modeCourant === "livraison" ? "BL-" : "Facture-";
+  return prefixe + factureCourante.numero.replace(/[^a-zA-Z0-9_-]/g, "_") + ".pdf";
+}
+
+function verifierDocument() {
+  if (!factureCourante) return false;
+  if (modeCourant === "livraison" && lignesPourMode(factureCourante, "livraison").length === 0) {
+    afficherMessage("Pas de bon de livraison : cette facture ne contient que des prestations.", "err");
+    return false;
+  }
+  return true;
 }
 
 /* ---------- PDF ET WHATSAPP ---------- */
@@ -297,13 +364,11 @@ function chargerJsPDF() {
   });
 }
 
-function nomFichierPDF() {
-  return "Facture-" + factureCourante.numero.replace(/[^a-zA-Z0-9_-]/g, "_") + ".pdf";
-}
-
-async function creerPDF(f) {
+async function creerPDF(f, mode) {
   const jsPDF = await chargerJsPDF();
   const doc = new jsPDF();
+  const livraison = mode === "livraison";
+  const lignes = lignesPourMode(f, mode);
   let y = 20;
 
   doc.setFontSize(18);
@@ -316,7 +381,7 @@ async function creerPDF(f) {
   y += 14;
 
   doc.setFontSize(14);
-  doc.text("Facture " + f.numero, 14, y);
+  doc.text((livraison ? "Bon de livraison " : "Facture ") + f.numero, 14, y);
   y += 7;
   doc.setFontSize(10);
   doc.text("Date : " + (f.date_facture || ""), 14, y);
@@ -331,33 +396,48 @@ async function creerPDF(f) {
   doc.setFont(undefined, "bold");
   doc.text("Désignation", 14, y);
   doc.text("Qté", 115, y);
-  doc.text("Prix", 145, y);
-  doc.text("Total", 190, y, { align: "right" });
+  if (livraison) {
+    doc.text("Unité", 145, y);
+  } else {
+    doc.text("Prix", 145, y);
+    doc.text("Total", 190, y, { align: "right" });
+  }
   doc.line(14, y + 2, 196, y + 2);
   doc.setFont(undefined, "normal");
   y += 9;
 
-  (f.lignes_facture || []).forEach(l => {
+  lignes.forEach(l => {
     doc.text(String(l.designation), 14, y);
     doc.text(String(l.quantite), 115, y);
-    doc.text(formaterMontant(l.prix_unitaire), 145, y);
-    doc.text(formaterMontant(l.total), 190, y, { align: "right" });
+    if (livraison) {
+      doc.text(String(l.produits?.unite || ""), 145, y);
+    } else {
+      doc.text(formaterMontant(l.prix_unitaire), 145, y);
+      doc.text(formaterMontant(l.total), 190, y, { align: "right" });
+    }
     y += 8;
   });
 
   doc.line(14, y, 196, y);
-  y += 8;
-  doc.setFontSize(13);
-  doc.setFont(undefined, "bold");
-  doc.text("Total : " + formaterMontant(f.montant_total), 190, y, { align: "right" });
+  y += 10;
+
+  if (livraison) {
+    doc.setFontSize(10);
+    doc.text("Reçu par : ____________________", 14, y);
+    doc.text("Signature : ____________________", 110, y);
+  } else {
+    doc.setFontSize(13);
+    doc.setFont(undefined, "bold");
+    doc.text("Total : " + formaterMontant(f.montant_total), 190, y, { align: "right" });
+  }
 
   return doc;
 }
 
 async function telechargerPDF() {
-  if (!factureCourante) return;
+  if (!verifierDocument()) return;
   try {
-    const doc = await creerPDF(factureCourante);
+    const doc = await creerPDF(factureCourante, modeCourant);
     doc.save(nomFichierPDF());
   } catch (err) {
     afficherMessage("Erreur PDF : " + err.message, "err");
@@ -371,16 +451,19 @@ function ouvrirWhatsApp(texte) {
 }
 
 async function envoyerWhatsApp() {
-  if (!factureCourante) return;
+  if (!verifierDocument()) return;
   try {
-    const doc = await creerPDF(factureCourante);
+    const doc = await creerPDF(factureCourante, modeCourant);
     const blob = doc.output("blob");
     const fichier = new File([blob], nomFichierPDF(), { type: "application/pdf" });
-    const texte = "Bonjour, veuillez trouver votre facture " + factureCourante.numero +
-                  ". Total : " + formaterMontant(factureCourante.montant_total);
+
+    const texte = modeCourant === "livraison"
+      ? "Bonjour, veuillez trouver votre bon de livraison " + factureCourante.numero + "."
+      : "Bonjour, veuillez trouver votre facture " + factureCourante.numero +
+        ". Total : " + formaterMontant(factureCourante.montant_total);
 
     if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
-      await navigator.share({ files: [fichier], title: "Facture " + factureCourante.numero, text: texte });
+      await navigator.share({ files: [fichier], title: nomFichierPDF(), text: texte });
       return;
     }
 
@@ -393,26 +476,36 @@ async function envoyerWhatsApp() {
   }
 }
 
-function creerBoutonsPDF() {
+function creerBoutonsDocuments() {
   const section = document.getElementById("section-apercu");
   const div = document.createElement("div");
   div.innerHTML = `
+    <button type="button" id="btn-afficher-facture">Afficher la facture</button>
+    <button type="button" id="btn-afficher-bl">Afficher le bon de livraison</button>
     <button type="button" id="btn-pdf">Télécharger le PDF</button>
     <button type="button" id="btn-whatsapp">Envoyer par WhatsApp (PDF)</button>`;
   section.insertBefore(div, document.getElementById("btn-imprimer"));
 
+  document.getElementById("btn-afficher-facture").addEventListener("click", () => {
+    if (factureCourante) afficherApercu("facture");
+  });
+  document.getElementById("btn-afficher-bl").addEventListener("click", () => {
+    if (factureCourante) afficherApercu("livraison");
+  });
   document.getElementById("btn-pdf").addEventListener("click", telechargerPDF);
   document.getElementById("btn-whatsapp").addEventListener("click", envoyerWhatsApp);
 }
 
-document.getElementById("btn-imprimer").addEventListener("click", () => window.print());
+document.getElementById("btn-imprimer").addEventListener("click", () => {
+  if (verifierDocument()) window.print();
+});
 document.getElementById("btn-fermer-apercu").addEventListener("click", () => {
   document.getElementById("section-apercu").style.display = "none";
 });
 
 /* ---------- DÉMARRAGE ---------- */
 
-creerBoutonsPDF();
+creerBoutonsDocuments();
 chargerProduits();
 chargerClients();
 chargerFactures();
