@@ -22,6 +22,7 @@
     th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; }
     .total { text-align: right; font-size: 18px; font-weight: bold; margin: 12px 0; }
     .ligne-form { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+    .deux-colonnes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     #message { display: none; padding: 10px; margin-bottom: 12px; border-radius: 4px; }
     #message.ok { display: block; background: #d4edda; }
     #message.err { display: block; background: #f8d7da; }
@@ -46,15 +47,23 @@
     <div id="message"></div>
 
     <section>
-      <h2>Produits</h2>
+      <h2>Produits et prestations</h2>
       <form id="form-produit">
-        <input id="p-nom" placeholder="Nom du produit *" required>
+        <input id="p-nom" placeholder="Nom du produit ou de la prestation *" required>
+        <div class="deux-colonnes">
+          <select id="p-type" required>
+            <option value="produit">Produit</option>
+            <option value="prestation">Prestation</option>
+          </select>
+          <input id="p-unite" placeholder="Unité (ex : pièce, heure, forfait)" value="unité">
+        </div>
         <input id="p-prix" type="number" step="0.01" min="0" placeholder="Prix unitaire *" required>
         <input id="p-description" placeholder="Description">
-        <button type="submit">Ajouter le produit</button>
+        <button type="submit">Ajouter</button>
       </form>
+      <h3>Liste</h3>
       <table>
-        <thead><tr><th>Produit</th><th>Prix</th></tr></thead>
+        <thead><tr><th>Nom</th><th>Type</th><th>Prix</th></tr></thead>
         <tbody id="liste-produits"></tbody>
       </table>
     </section>
