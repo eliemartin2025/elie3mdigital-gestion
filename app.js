@@ -20,6 +20,20 @@ function formaterMontant(n) {
   return Number(n || 0).toFixed(2);
 }
 
+function ajouterColonneAction(idTbody) {
+  const table = document.getElementById(idTbody).closest("table");
+  const tr = table.querySelector("thead tr");
+  if (!tr.querySelector(".col-action")) {
+    const th = document.createElement("th");
+    th.className = "col-action";
+    th.textContent = "Action";
+    tr.appendChild(th);
+  }
+}
+
+ajouterColonneAction("liste-produits");
+ajouterColonneAction("liste-clients");
+
 /* ---------- PRODUITS ---------- */
 
 async function chargerProduits() {
@@ -35,7 +49,7 @@ async function chargerProduits() {
     tbody.innerHTML += `<tr>
       <td>${echapper(p.nom)}</td>
       <td>${formaterMontant(p.prix_unitaire)}</td>
-      <td><button type="button" class="danger" onclick="supprimerProduit(${p.id}, '${echapper(p.nom).replace(/'/g, "\\'")}')">X</button></td>
+      <td><button type="button" class="danger" onclick="supprimerProduit(${p.id}, '${echapper(p.nom).replace(/'/g, "\\'")}')">Supprimer</button></td>
     </tr>`;
     select.innerHTML += `<option value="${p.id}" data-prix="${p.prix_unitaire}" data-nom="${echapper(p.nom)}">${echapper(p.nom)}</option>`;
   });
@@ -79,7 +93,7 @@ async function chargerClients() {
       <td>${echapper(c.nom)}</td>
       <td>${echapper(c.email)}</td>
       <td>${echapper(c.telephone)}</td>
-      <td><button type="button" class="danger" onclick="supprimerClient(${c.id}, '${echapper(c.nom).replace(/'/g, "\\'")}')">X</button></td>
+      <td><button type="button" class="danger" onclick="supprimerClient(${c.id}, '${echapper(c.nom).replace(/'/g, "\\'")}')">Supprimer</button></td>
     </tr>`;
     select.innerHTML += `<option value="${c.id}">${echapper(c.nom)}</option>`;
   });
@@ -124,7 +138,7 @@ function rafraichirLignes() {
       <td>${l.quantite}</td>
       <td>${formaterMontant(l.prix_unitaire)}</td>
       <td>${formaterMontant(sousTotal)}</td>
-      <td><button type="button" class="danger" onclick="supprimerLigne(${index})">X</button></td>
+      <td><button type="button" class="danger" onclick="supprimerLigne(${index})">Retirer</button></td>
     </tr>`;
   });
 
@@ -175,7 +189,7 @@ async function chargerFactures() {
       <td>${formaterMontant(f.montant_total)}</td>
       <td>
         <button type="button" class="secondaire" onclick="voirFacture(${f.id})">Voir</button>
-        <button type="button" class="danger" onclick="supprimerFacture(${f.id}, '${echapper(f.numero).replace(/'/g, "\\'")}')">X</button>
+        <button type="button" class="danger" onclick="supprimerFacture(${f.id}, '${echapper(f.numero).replace(/'/g, "\\'")}')">Supprimer</button>
       </td>
     </tr>`;
   });
