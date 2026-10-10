@@ -1,6 +1,7 @@
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let lignesEnCours = [];
+let factureCourante = null;
 
 function echapper(texte) {
   const div = document.createElement("div");
@@ -34,9 +35,18 @@ async function chargerProduits() {
     tbody.innerHTML += `<tr>
       <td>${echapper(p.nom)}</td>
       <td>${formaterMontant(p.prix_unitaire)}</td>
+      <td><button type="button" class="danger" onclick="supprimerProduit(${p.id}, '${echapper(p.nom).replace(/'/g, "\\'")}')">X</button></td>
     </tr>`;
     select.innerHTML += `<option value="${p.id}" data-prix="${p.prix_unitaire}" data-nom="${echapper(p.nom)}">${echapper(p.nom)}</option>`;
   });
+}
+
+async function supprimerProduit(id, nom) {
+  if (!confirm("Supprimer le produit « " + nom + " » ?")) return;
+  const { error } = await db.from("produits").delete().eq("id", id);
+  if (error) return afficherMessage("Erreur : " + error.message, "err");
+  afficherMessage("Produit supprimé.", "ok");
+  chargerProduits();
 }
 
 document.getElementById("form-produit").addEventListener("submit", async (e) => {
@@ -69,9 +79,19 @@ async function chargerClients() {
       <td>${echapper(c.nom)}</td>
       <td>${echapper(c.email)}</td>
       <td>${echapper(c.telephone)}</td>
+      <td><button type="button" class="danger" onclick="supprimerClient(${c.id}, '${echapper(c.nom).replace(/'/g, "\\'")}')">X</button></td>
     </tr>`;
     select.innerHTML += `<option value="${c.id}">${echapper(c.nom)}</option>`;
   });
+}
+
+async function supprimerClient(id, nom) {
+  if (!confirm("Supprimer le client « " + nom + " » ET toutes ses factures ?")) return;
+  const { error } = await db.from("clients").delete().eq("id", id);
+  if (error) return afficherMessage("Erreur : " + error.message, "err");
+  afficherMessage("Client supprimé.", "ok");
+  chargerClients();
+  chargerFactures();
 }
 
 document.getElementById("form-client").addEventListener("submit", async (e) => {
@@ -153,9 +173,25 @@ async function chargerFactures() {
       <td>${echapper(f.clients?.nom)}</td>
       <td>${echapper(f.date_facture)}</td>
       <td>${formaterMontant(f.montant_total)}</td>
-      <td><button type="button" class="secondaire" onclick="voirFacture(${f.id})">Voir</button></td>
+      <td>
+        <button type="button" class="secondaire" onclick="voirFacture(${f.id})">Voir</button>
+        <button type="button" class="danger" onclick="supprimerFacture(${f.id}, '${echapper(f.numero).replace(/'/g, "\\'")}')">X</button>
+      </td>
     </tr>`;
   });
+}
+
+async function supprimerFacture(id, numero) {
+  if (!confirm("Supprimer la facture « " + numero + " » ?")) return;
+  const { error } = await db.from("factures").delete().eq("id", id);
+  if (error) return afficherMessage("Erreur : " + error.message, "err");
+
+  if (factureCourante && factureCourante.id === id) {
+    factureCourante = null;
+    document.getElementById("section-apercu").style.display = "none";
+  }
+  afficherMessage("Facture supprimée.", "ok");
+  chargerFactures();
 }
 
 document.getElementById("form-facture").addEventListener("submit", async (e) => {
@@ -206,6 +242,8 @@ async function voirFacture(id) {
     .single();
   if (error) return afficherMessage("Erreur : " + error.message, "err");
 
+  factureCourante = f;
+
   const lignesHtml = f.lignes_facture.map(l => `
     <tr>
       <td>${echapper(l.designation)}</td>
@@ -215,7 +253,7 @@ async function voirFacture(id) {
     </tr>`).join("");
 
   document.getElementById("facture-imprimable").innerHTML = `
-    <img src="logo.png" alt="Logo" style="height:70px">
+    <h2>Elie3MDigital</h2>
     <h2>Facture ${echapper(f.numero)}</h2>
     <p>Date : ${echapper(f.date_facture)}</p>
     <p><strong>Client :</strong> ${echapper(f.clients?.nom)}<br>
@@ -232,6 +270,127 @@ async function voirFacture(id) {
   document.getElementById("section-apercu").scrollIntoView({ behavior: "smooth" });
 }
 
+/* ---------- PDF ET WHATSAPP ---------- */
+
+function chargerJsPDF() {
+  return new Promise((resolve, reject) => {
+    if (window.jspdf) return resolve(window.jspdf.jsPDF);
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    s.onload = () => resolve(window.jspdf.jsPDF);
+    s.onerror = () => reject(new Error("Impossible de charger le générateur PDF"));
+    document.head.appendChild(s);
+  });
+}
+
+function nomFichierPDF() {
+  return "Facture-" + factureCourante.numero.replace(/[^a-zA-Z0-9_-]/g, "_") + ".pdf";
+}
+
+async function creerPDF(f) {
+  const jsPDF = await chargerJsPDF();
+  const doc = new jsPDF();
+  let y = 20;
+
+  doc.setFontSize(18);
+  doc.setTextColor(30, 77, 140);
+  doc.text("Elie3MDigital", 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text("Votre partenaire digital au quotidien", 14, y);
+  y += 14;
+
+  doc.setFontSize(14);
+  doc.text("Facture " + f.numero, 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  doc.text("Date : " + (f.date_facture || ""), 14, y);
+  y += 10;
+
+  doc.text("Client : " + (f.clients?.nom || ""), 14, y);
+  y += 5;
+  if (f.clients?.adresse) { doc.text(f.clients.adresse, 14, y); y += 5; }
+  if (f.clients?.telephone) { doc.text(f.clients.telephone, 14, y); y += 5; }
+  y += 8;
+
+  doc.setFont(undefined, "bold");
+  doc.text("Désignation", 14, y);
+  doc.text("Qté", 115, y);
+  doc.text("Prix", 145, y);
+  doc.text("Total", 190, y, { align: "right" });
+  doc.line(14, y + 2, 196, y + 2);
+  doc.setFont(undefined, "normal");
+  y += 9;
+
+  (f.lignes_facture || []).forEach(l => {
+    doc.text(String(l.designation), 14, y);
+    doc.text(String(l.quantite), 115, y);
+    doc.text(formaterMontant(l.prix_unitaire), 145, y);
+    doc.text(formaterMontant(l.total), 190, y, { align: "right" });
+    y += 8;
+  });
+
+  doc.line(14, y, 196, y);
+  y += 8;
+  doc.setFontSize(13);
+  doc.setFont(undefined, "bold");
+  doc.text("Total : " + formaterMontant(f.montant_total), 190, y, { align: "right" });
+
+  return doc;
+}
+
+async function telechargerPDF() {
+  if (!factureCourante) return;
+  try {
+    const doc = await creerPDF(factureCourante);
+    doc.save(nomFichierPDF());
+  } catch (err) {
+    afficherMessage("Erreur PDF : " + err.message, "err");
+  }
+}
+
+function ouvrirWhatsApp(texte) {
+  const tel = (factureCourante.clients?.telephone || "").replace(/\D/g, "");
+  if (!tel) return afficherMessage("Ce client n'a pas de numéro de téléphone.", "err");
+  window.open("https://wa.me/" + tel + "?text=" + encodeURIComponent(texte), "_blank");
+}
+
+async function envoyerWhatsApp() {
+  if (!factureCourante) return;
+  try {
+    const doc = await creerPDF(factureCourante);
+    const blob = doc.output("blob");
+    const fichier = new File([blob], nomFichierPDF(), { type: "application/pdf" });
+    const texte = "Bonjour, veuillez trouver votre facture " + factureCourante.numero +
+                  ". Total : " + formaterMontant(factureCourante.montant_total);
+
+    if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+      await navigator.share({ files: [fichier], title: "Facture " + factureCourante.numero, text: texte });
+      return;
+    }
+
+    doc.save(nomFichierPDF());
+    ouvrirWhatsApp(texte);
+    afficherMessage("PDF téléchargé. Joins-le dans WhatsApp.", "ok");
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    afficherMessage("Erreur WhatsApp : " + err.message, "err");
+  }
+}
+
+function creerBoutonsPDF() {
+  const section = document.getElementById("section-apercu");
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <button type="button" id="btn-pdf">Télécharger le PDF</button>
+    <button type="button" id="btn-whatsapp">Envoyer par WhatsApp (PDF)</button>`;
+  section.insertBefore(div, document.getElementById("btn-imprimer"));
+
+  document.getElementById("btn-pdf").addEventListener("click", telechargerPDF);
+  document.getElementById("btn-whatsapp").addEventListener("click", envoyerWhatsApp);
+}
+
 document.getElementById("btn-imprimer").addEventListener("click", () => window.print());
 document.getElementById("btn-fermer-apercu").addEventListener("click", () => {
   document.getElementById("section-apercu").style.display = "none";
@@ -239,6 +398,7 @@ document.getElementById("btn-fermer-apercu").addEventListener("click", () => {
 
 /* ---------- DÉMARRAGE ---------- */
 
+creerBoutonsPDF();
 chargerProduits();
 chargerClients();
 chargerFactures();
